@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import math
 from typing import Tuple, TYPE_CHECKING, TypeVar, Optional, Type, Union
 
 from render_order import RenderOrder
@@ -65,6 +66,10 @@ class Entity:
                     self.gamemap.entities.remove(self)
             self.parent = gamemap
             gamemap.entities.add(self)
+
+    def distance(self, x: int, y: int) -> float:
+        """Return the distance between the current entity and the given (x, y) coordinate"""
+        return math.sqrt((x - self.x) ** 2 + (y - self.y) ** 2)
 
     def move(self, dx: int, dy: int) -> None:
         self.x += dx

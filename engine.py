@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from tcod.console import Console
 
+import colour
 import exceptions
 from message_log import MessageLog
 import render_functions
@@ -56,6 +57,14 @@ class Engine:
         render_functions.render_dungeon_level(console,
                                               dungeon_level=self.game_world.current_floor,
                                               location=(0, 47))
+
+        render_functions.render_bar(console=console,
+                                    current_value=self.player.level.current_xp,
+                                    maximum_value=self.player.level.experience_to_next_level,
+                                    total_width=20,
+                                    y=49,
+                                    prefix="XP",
+                                    full_colour=colour.xp_bar_filled)
 
         render_functions.render_names_at_mouse_location(console, x=21, y=44, engine=self)
 

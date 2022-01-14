@@ -21,10 +21,11 @@ class Engine:
     game_map: GameMap
     game_world: GameWorld
 
-    def __init__(self, player: Actor):
+    def __init__(self, player: Actor, debug=False):
         self.message_log = MessageLog()
         self.mouse_location = (0, 0)
         self.player = player
+        self.debug = debug
 
     def handle_enemy_turns(self) -> None:
         for entity in set(self.game_map.actors) - {self.player}:

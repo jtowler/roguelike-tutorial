@@ -18,7 +18,7 @@ import entity_factories
 background_image = tcod.image.load("menu_background.png")[:, :, :3]
 
 
-def new_game() -> Engine:
+def new_game(debug: bool = False) -> Engine:
     """Return a brand new game session as an Engine instance."""
     map_width = 80
     map_height = 43
@@ -29,7 +29,7 @@ def new_game() -> Engine:
 
     player = copy.deepcopy(entity_factories.player)
 
-    engine = Engine(player=player)
+    engine = Engine(player=player, debug=debug)
 
     engine.game_world = GameWorld(engine=engine,
                                   max_rooms=max_rooms,
@@ -112,5 +112,7 @@ class MainMenu(input_handlers.BaseEventHandler):
                 return input_handlers.PopupMessage(self, f"Failed to load save:\n{exc}")
         elif event.sym == tcod.event.K_n:
             return input_handlers.MainGameEventHandler(new_game())
+        elif event.sym == tcod.event.K_d:
+            return input_handlers.MainGameEventHandler(new_game(debug=True))
 
         return None

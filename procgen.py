@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import math
 import random
-from typing import Tuple, Iterator, List, TYPE_CHECKING, Dict
+from itertools import product
+from typing import Tuple, Iterator, List, TYPE_CHECKING, Dict, Optional
 import tcod
 
 import entity_factories
@@ -67,12 +69,32 @@ def get_entities_at_random(weighted_chances_by_floor: Dict[int, List[Tuple[Entit
     return random.choices(entities, weights=entity_weighted_chance_values, k=number_of_entities)
 
 
-class RectangularRoom:
+class Room:
+    x1: int
+    y1: int
+    x2: int
+    y2: int
+
+    def center(self) -> Tuple[int, int]:
+        raise NotImplementedError()
+
+    def place_player_coordinate(self) -> Tuple[int, int]:
+        raise NotImplementedError()
+
+    def intersects(self, other: Room) -> bool:
+        """Return true if this room overlaps with another"""
+        return self.x1 <= other.x2 and self.x2 >= other.x1 and self.y1 <= other.y2 and self.y2 >= other.y1
+
+
+class RectangularRoom(Room):
     def __init__(self, x: int, y: int, width: int, height: int):
         self.x1 = x
         self.y1 = y
         self.x2 = x + width
         self.y2 = y + height
+
+    def place_player_coordinate(self) -> Tuple[int, int]:
+        return self.center
 
     @property
     def center(self) -> Tuple[int, int]:
@@ -86,9 +108,48 @@ class RectangularRoom:
         """Return the inner area of this room as a 2D array index"""
         return slice(self.x1 + 1, self.x2), slice(self.y1 + 1, self.y2)
 
-    def intersects(self, other: RectangularRoom) -> bool:
-        """Return true if this room overlaps with another"""
-        return self.x1 <= other.x2 and self.x2 >= other.x1 and self.y1 <= other.y2 and self.y2 >= other.y1
+
+class CircularRoom(Room):
+    def __init__(self, x: int, y: int, radius: int):
+        self.x = x
+        self.y = y
+        self.x1 = x - radius
+        self.x2 = x + radius
+        self.y1 = y - radius
+        self.y2 = y + radius
+        self.radius = radius
+
+    def place_player_coordinate(self) -> Tuple[int, int]:
+        return self.x, self.y
+
+    @property
+    def center(self) -> Tuple[int, int]:
+        return self.x, self.y
+
+    @property
+    def inner(self) -> List[Tuple[int, int]]:
+        """Return the inner area of this room as a 2D array index"""
+        diameter = range(-self.radius, self.radius + 1)
+        return [(x + self.x, y + self.y) for x, y in product(diameter, repeat=2)
+                if math.sqrt(x ** 2 + y ** 2) < self.radius]
+
+
+class RingRoom(CircularRoom):
+    def __init__(self, x: int, y: int, radius: int, inner_radius: Optional[int] = None):
+        super().__init__(x, y, radius)
+        if inner_radius is None:
+            self.inner_radius = radius // 2
+        else:
+            self.inner_radius = inner_radius
+        self.inner_circle = CircularRoom(x, y, self.inner_radius)
+
+    @property
+    def inner(self) -> List[Tuple[int, int]]:
+        """Return the inner area of this room as a 2D array index"""
+        return [tile for tile in super().inner if tile not in self.inner_circle.inner]
+
+    def place_player_coordinate(self) -> Tuple[int, int]:
+        return self.x, self.y - self.inner_radius - (self.radius - self.inner_radius) // 2
 
 
 def place_entities(room: RectangularRoom, dungeon: GameMap, floor_number: int) -> None:
@@ -111,7 +172,7 @@ def tunnel_between(start: Tuple[int, int], end: Tuple[int, int]) -> Iterator[Tup
     x1, y1 = start
     x2, y2 = end
     if random.random() < 0.5:
-        # Move horiz than vert
+        # Move horiz then vert
         corner_x, corner_y = x2, y1
     else:
         corner_x, corner_y = x1, y2
@@ -148,6 +209,68 @@ def generate_dungeon(max_rooms: int, room_min_size: int, room_max_size: int, map
 
         if len(rooms) == 0:
             player.place(*new_room.center, dungeon)
+        else:
+            for x, y in tunnel_between(rooms[-1].center, new_room.center):
+                dungeon.tiles[x, y] = tile_types.floor
+            center_of_last_room = new_room.center
+
+        place_entities(new_room, dungeon, engine.game_world.current_floor)
+
+        dungeon.tiles[center_of_last_room] = tile_types.down_stairs
+        dungeon.downstairs_location = center_of_last_room
+
+        rooms.append(new_room)
+
+    return dungeon
+
+
+def test_dungeon(max_rooms: int, room_min_size: int, room_max_size: int, map_width: int,
+                 map_height: int, engine: Engine) -> GameMap:
+    """Generate a new dungeon map"""
+    player = engine.player
+    dungeon = GameMap(engine, map_width, map_height, entities=[player])
+
+    rooms: List[Room] = []
+
+    center_of_last_room = (0, 0)
+
+    for r in range(max_rooms):
+
+        room_type_check = random.random()
+
+        if room_type_check < 0.6:
+
+            room_width = random.randint(room_min_size, room_max_size)
+            room_height = random.randint(room_min_size, room_max_size)
+            x = random.randint(0, dungeon.width - room_width - 1)
+            y = random.randint(0, dungeon.height - room_height - 1)
+            new_room = RectangularRoom(x, y, room_width, room_height)
+
+        elif room_type_check < 0.9:
+            radius = random.randint(room_min_size // 2, room_max_size // 2)
+            x = random.randint(radius, dungeon.width - radius)
+            y = random.randint(radius, dungeon.height - radius)
+
+            new_room = CircularRoom(x, y, radius)
+        else:
+            radius = random.randint(room_min_size // 2, room_max_size // 2)
+            inner_radius = random.randint(1, radius)
+            x = random.randint(radius, dungeon.width - radius)
+            y = random.randint(radius, dungeon.height - radius)
+
+            new_room = RingRoom(x, y, radius, inner_radius=inner_radius)
+
+        if any(new_room.intersects(other_room) for other_room in rooms):
+            continue
+
+        if isinstance(new_room, RectangularRoom):
+            dungeon.tiles[new_room.inner] = tile_types.floor
+        else:
+            for xy in new_room.inner:
+                dungeon.tiles[xy] = tile_types.floor
+
+        if len(rooms) == 0:
+            player.place(*new_room.place_player_coordinate(), dungeon)
         else:
             for x, y in tunnel_between(rooms[-1].center, new_room.center):
                 dungeon.tiles[x, y] = tile_types.floor

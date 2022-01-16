@@ -81,12 +81,16 @@ class Room:
     def place_player_coordinate(self) -> Tuple[int, int]:
         raise NotImplementedError()
 
+    def get_coord_within(self) -> Tuple[int, int]:
+        raise NotImplementedError()
+
     def intersects(self, other: Room) -> bool:
         """Return true if this room overlaps with another"""
         return self.x1 <= other.x2 and self.x2 >= other.x1 and self.y1 <= other.y2 and self.y2 >= other.y1
 
 
 class RectangularRoom(Room):
+
     def __init__(self, x: int, y: int, width: int, height: int):
         self.x1 = x
         self.y1 = y
@@ -95,6 +99,11 @@ class RectangularRoom(Room):
 
     def place_player_coordinate(self) -> Tuple[int, int]:
         return self.center
+
+    def get_coord_within(self) -> Tuple[int, int]:
+        x = random.randint(self.x1 + 1, self.x2 - 1)
+        y = random.randint(self.y1 + 1, self.y2 - 1)
+        return x, y
 
     @property
     def center(self) -> Tuple[int, int]:
@@ -133,6 +142,9 @@ class CircularRoom(Room):
         return [(x + self.x, y + self.y) for x, y in product(diameter, repeat=2)
                 if math.sqrt(x ** 2 + y ** 2) < self.radius]
 
+    def get_coord_within(self) -> Tuple[int, int]:
+        return random.choice(self.inner)
+
 
 class RingRoom(CircularRoom):
     def __init__(self, x: int, y: int, radius: int, inner_radius: Optional[int] = None):
@@ -151,8 +163,11 @@ class RingRoom(CircularRoom):
     def place_player_coordinate(self) -> Tuple[int, int]:
         return self.x, self.y - self.inner_radius - (self.radius - self.inner_radius) // 2
 
+    def get_coord_within(self) -> Tuple[int, int]:
+        return random.choice(self.inner)
 
-def place_entities(room: RectangularRoom, dungeon: GameMap, floor_number: int) -> None:
+
+def place_entities(room: Room, dungeon: GameMap, floor_number: int) -> None:
     number_of_monsters = random.randint(0, get_max_value_for_floor(max_monsters_by_floor, floor_number))
     number_of_items = random.randint(0, get_max_value_for_floor(max_items_by_floor, floor_number))
 
@@ -160,8 +175,7 @@ def place_entities(room: RectangularRoom, dungeon: GameMap, floor_number: int) -
     items: List[Entity] = get_entities_at_random(item_chances, number_of_items, floor_number)
 
     for entity in monsters + items:
-        x = random.randint(room.x1 + 1, room.x2 - 1)
-        y = random.randint(room.y1 + 1, room.y2 - 1)
+        x, y = room.get_coord_within()
 
         if not any(entity.x == x and entity.y == y for entity in dungeon.entities):
             entity.spawn(dungeon, x, y)

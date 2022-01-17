@@ -193,9 +193,12 @@ class GameOverEventHandler(EventHandler):
     def ev_quit(self, event: tcod.event.Quit) -> None:
         self.on_quit()
 
-    def ev_keydown(self, event: tcod.event.KeyDown) -> None:
+    def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[BaseEventHandler]:
         if event.sym == tcod.event.K_ESCAPE:
             self.on_quit()
+        if event.sym == tcod.event.K_r:
+            from setup_game import new_game
+            return MainGameEventHandler(new_game(self.engine.debug))
 
 
 CURSOR_Y_KEYS = {

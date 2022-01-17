@@ -268,7 +268,7 @@ def test_dungeon(max_rooms: int, room_min_size: int, room_max_size: int, map_wid
             new_room = CircularRoom(x, y, radius)
         else:
             radius = random.randint(room_min_size // 2, room_max_size // 2)
-            inner_radius = random.randint(1, radius)
+            inner_radius = random.randint(1, radius - 2)
             x = random.randint(radius, dungeon.width - radius)
             y = random.randint(radius, dungeon.height - radius)
 
